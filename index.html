@@ -36,7 +36,7 @@ video { width:100%; background:#000; border-radius:8px; display:block; margin-to
   <div class="card" id="entryCard">
     <h2>Enter</h2>
     <div class="row">
-      <input id="nameInput" type="text" placeholder="If viewer: type your name. If admin: leave blank and enter password below." />
+      <input id="nameInput" type="text" placeholder="If viewer: type your name here. If admin: leave blank and enter password below." />
       <input id="passwordInput" type="password" placeholder="Admin password" />
       <button id="enterBtn">Enter</button>
     </div>
@@ -88,7 +88,7 @@ video { width:100%; background:#000; border-radius:8px; display:block; margin-to
   </div>
 
   <div class="card small center" style="margin-top:10px;">
-    Built with Firebase Realtime DB. Android & PC fully supported. For iOS broadcasting, native app required.
+    Built with Firebase Realtime DB. For iOS broadcasting, a native app is required. Android & PC fully supported.
   </div>
 </div>
 
@@ -136,7 +136,6 @@ let localStream=null;
 let pcs={};
 let viewerId=null;
 
-// Utility functions
 function now(){ return new Date().toISOString(); }
 function genId(len=8){ const s='abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
 function appendChat(text,isAdminMsg=false){ 
@@ -150,52 +149,38 @@ function appendChat(text,isAdminMsg=false){
   });
 }
 
-// ================== Viewer Count based on actual connections ==================
-const viewersRef = db.ref('viewers');
-viewersRef.on('value', snap=>{
-  const data = snap.val() || {};
-  const count = Object.keys(data).length;
-  viewerCountAdmin.innerText = count;
-  viewerCountViewer.innerText = count;
-});
+const viewerCountRef=db.ref('meta/viewerCount');
+viewerCountRef.once('value',snap=>{ if(snap.val()===null) viewerCountRef.set(0); });
+viewerCountRef.on('value',snap=>{ const v=snap.val()||0; viewerCountAdmin.innerText=v; viewerCountViewer.innerText=v; });
+async function incViewerCount(){ await viewerCountRef.transaction(n=>(n||0)+1); }
+async function decViewerCount(){ await viewerCountRef.transaction(n=>Math.max(0,(n||0)-1)); }
 
-// ================== Chat ==================
-const chatRef = db.ref('chat');
-chatRef.on('child_added', snap=>{
-  const val = snap.val();
-  appendChat(val.text, val.admin || false);
+const chatRef=db.ref('chat');
+chatRef.on('child_added',snap=>{ 
+  const val=snap.val(); 
+  appendChat(val.text, val.admin || false); 
 });
 function pushChat(name,text,admin=false){ chatRef.push({ time: now(), text: name+': '+text, admin }); }
-clearChatBtn.onclick = ()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatBoxes.forEach(cb=>cb.innerHTML=''); }
 
-// ================== Admin / Viewer Entry ==================
+clearChatBtn.onclick=()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatBoxes.forEach(cb=>cb.innerHTML=''); }
+
 enterBtn.onclick=()=>{
   const pass=passwordInput.value.trim();
   const name=nameInput.value.trim();
   if(pass===ADMIN_PASSWORD){
-    isAdmin=true;
-    entryCard.style.display='none';
-    adminCard.style.display='block';
-    viewerCard.style.display='none';
+    isAdmin=true; entryCard.style.display='none'; adminCard.style.display='block'; viewerCard.style.display='none';
     appendChat('System: Admin signed in at '+now(),true);
     listenForViewerRequests();
   } else {
-    isAdmin=false;
-    viewerId=genId(10);
-    entryCard.style.display='none';
-    adminCard.style.display='none';
-    viewerCard.style.display='block';
-    viewerNameLabel.innerText = name||'Anonymous';
-    db.ref('viewers/'+viewerId).set({ name:name||'Anonymous', joined:now() });
+    isAdmin=false; viewerId=genId(10); entryCard.style.display='none'; adminCard.style.display='none'; viewerCard.style.display='block';
+    viewerNameLabel.innerText=name||'Anonymous';
+    db.ref('viewers/'+viewerId).set({name:name||'Anonymous', joined:now()}); incViewerCount();
     requestOfferAsViewer(viewerId,name||'Anonymous');
     appendChat('System: Viewer joined as '+(name||'Anonymous')+' at '+now());
-    window.addEventListener('unload',()=>{
-      db.ref('viewers/'+viewerId).remove();
-    });
+    window.addEventListener('unload',()=>{ db.ref('viewers/'+viewerId).remove(); decViewerCount(); });
   }
 };
 
-// ================== WebRTC Signalling ==================
 const requestsRef=db.ref('requests');
 const offersRef=db.ref('offers');
 const answersRef=db.ref('answers');
@@ -204,43 +189,27 @@ const iceAdminRefRoot=db.ref('ice/admin');
 
 async function listenForViewerRequests(){
   requestsRef.on('child_added', async snap=>{
-    const vId=snap.key; if(!vId) return;
+    const vId=snap.key;
+    if(!vId) return;
     if(!localStream){ db.ref('offers/'+vId).set({error:'broadcaster-not-ready'}); return; }
-    const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
-    pcs[vId] = pc;
-    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    pcs[vId]=pc; localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
     pc.onicecandidate=e=>{ if(e.candidate) iceAdminRefRoot.child(vId).push(JSON.stringify(e.candidate)); };
     try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); await offersRef.child(vId).set(JSON.stringify(offer)); }catch(e){console.error(e);}
-    answersRef.child(vId).on('value', snapAnswer=>{
-      const val=snapAnswer.val(); if(!val) return;
-      try{ pc.setRemoteDescription(JSON.parse(val)); requestsRef.child(vId).remove().catch(()=>{}); }catch(e){console.warn(e);}
-    });
-    iceViewerRefRoot.child(vId).on('child_added', snapIce=>{
-      try{ pc.addIceCandidate(new RTCIceCandidate(JSON.parse(snapIce.val()))).catch(()=>{}); }catch(e){console.warn(e);}
-    });
-    pc.onconnectionstatechange = ()=>{
-      if(['closed','failed','disconnected'].includes(pc.connectionState)){
-        answersRef.child(vId).off();
-        iceViewerRefRoot.child(vId).off();
-        iceAdminRefRoot.child(vId).remove().catch(()=>{});
-        offersRef.child(vId).remove().catch(()=>{});
-        delete pcs[vId];
-      }
-    };
+    answersRef.child(vId).on('value',snapAnswer=>{ const val=snapAnswer.val(); if(!val) return; try{ pc.setRemoteDescription(JSON.parse(val)); requestsRef.child(vId).remove().catch(()=>{}); }catch(e){console.warn(e);} });
+    iceViewerRefRoot.child(vId).on('child_added',snapIce=>{ try{ pc.addIceCandidate(new RTCIceCandidate(JSON.parse(snapIce.val()))).catch(()=>{}); }catch(e){console.warn(e);} });
+    pc.onconnectionstatechange=()=>{ if(['closed','failed','disconnected'].includes(pc.connectionState)){ answersRef.child(vId).off(); iceViewerRefRoot.child(vId).off(); iceAdminRefRoot.child(vId).remove().catch(()=>{}); offersRef.child(vId).remove().catch(()=>{}); delete pcs[vId]; } };
   });
 }
 
-// ================== Admin Start/Stop ==================
-startBtn.onclick = async ()=>{
-  try{
-    localStream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-  }catch(e){ alert('Could not get screen capture: '+e.message); return; }
-  localVideo.srcObject = localStream;
-  appendChat('Admin: started sharing at '+now(),true);
+startBtn.onclick=async()=>{
+  try{ localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); }
+  catch(e){ alert('Could not get screen capture: '+e.message); return; }
+  localVideo.srcObject=localStream; appendChat('Admin: started sharing at '+now(),true);
   db.ref('meta/broadcaster').set({online:true, startedAt:now()});
 };
 
-stopBtn.onclick = ()=>{
+stopBtn.onclick=()=>{
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; localVideo.srcObject=null; }
   db.ref('meta/broadcaster').set({online:false, stoppedAt:now()});
   requestsRef.remove().catch(()=>{}); offersRef.remove().catch(()=>{}); answersRef.remove().catch(()=>{}); iceViewerRefRoot.remove().catch(()=>{}); iceAdminRefRoot.remove().catch(()=>{});
@@ -248,44 +217,35 @@ stopBtn.onclick = ()=>{
   Object.keys(pcs).forEach(id=>{ pcs[id].close(); answersRef.child(id).off(); iceViewerRefRoot.child(id).off(); }); pcs={};
 };
 
-// ================== Viewer Offer Request ==================
 async function requestOfferAsViewer(myViewerId,name){
-  const setupConnection = async ()=>{
-    const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
-    pc.onicecandidate = e=>{ if(e.candidate) iceViewerRefRoot.child(myViewerId).push(JSON.stringify(e.candidate)); };
-    pc.ontrack = e=>{ remoteVideo.srcObject = e.streams[0]; };
-    offersRef.child(myViewerId).on('value', async snap=>{
-      const val = snap.val(); if(!val) return;
-      if(val.error==='broadcaster-not-ready'){ appendChat('System: broadcaster not ready. Please wait...'); return; }
-      try{
-        await pc.setRemoteDescription(JSON.parse(val));
-        const ans = await pc.createAnswer();
-        await pc.setLocalDescription(ans);
-        await answersRef.child(myViewerId).set(JSON.stringify(ans));
-        iceAdminRefRoot.child(myViewerId).on('child_added', s=>{
-          try{ pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{}); }catch(e){console.warn(e);}
-        });
-      }catch(err){ console.error(err); }
-    });
-  };
-
-  // Listen to broadcaster status and auto setup
-  const broadcasterRef = db.ref('meta/broadcaster');
-  broadcasterRef.on('value', snap=>{
-    const meta = snap.val();
-    if(meta && meta.online){ setupConnection(); } 
-    else{ remoteVideo.srcObject = null; appendChat('System: No broadcast currently.'); }
+  await requestsRef.child(myViewerId).set({name:name, createdAt:now()});
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  pc.onicecandidate=e=>{ if(e.candidate) iceViewerRefRoot.child(myViewerId).push(JSON.stringify(e.candidate)); };
+  pc.ontrack=e=>{ remoteVideo.srcObject=e.streams[0]; };
+  offersRef.child(myViewerId).on('value',async snap=>{
+    const val=snap.val(); if(!val) return;
+    if(val.error==='broadcaster-not-ready'){ appendChat('System: broadcaster not ready. Please wait...'); return; }
+    try{ await pc.setRemoteDescription(JSON.parse(val)); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); await answersRef.child(myViewerId).set(JSON.stringify(ans)); iceAdminRefRoot.child(myViewerId).on('child_added',s=>{ try{ pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.val()))).catch(()=>{}); }catch(e){console.warn(e);} }); }catch(e){console.error(e);}
   });
-
   db.ref('viewers/'+myViewerId).update({connectedAt:now()});
   setTimeout(()=>requestsRef.child(myViewerId).remove().catch(()=>{}),60000);
 }
 
-// ================== Chat Send ==================
+/* Viewer auto reconnect when admin restarts broadcast */
+if(!isAdmin) {
+  const broadcasterRef = db.ref('meta/broadcaster');
+  broadcasterRef.on('value', snap => {
+    const meta = snap.val();
+    if(meta && meta.online) {
+      if(!viewerId) return;
+      requestOfferAsViewer(viewerId, nameInput.value.trim() || 'Anonymous');
+    }
+  });
+}
+
 sendMsg.onclick=()=>{ const t=msgInput.value.trim(); if(!t) return; pushChat(nameInput.value.trim()||'Anonymous',t); msgInput.value=''; }
 sendAdminMsg.onclick=()=>{ if(!isAdmin) return; const t=adminMsg.value.trim(); if(!t) return; pushChat('Admin',t,true); adminMsg.value=''; }
 fullscreenBtn.onclick=()=>{ const v=remoteVideo; if(v.requestFullscreen)v.requestFullscreen(); else if(v.webkitRequestFullscreen)v.webkitRequestFullscreen(); }
-
 </script>
 </body>
 </html>
