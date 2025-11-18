@@ -203,12 +203,8 @@ async function listenForViewerRequests(){
 }
 
 startBtn.onclick=async()=>{
-  try{
-    localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-  } catch(e){
-    alert('Could not get screen capture: '+e.message);
-    return;
-  }
+  try{ localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); }
+  catch(e){ alert('Could not get screen capture: '+e.message); return; }
   localVideo.srcObject=localStream; appendChat('Admin: started sharing at '+now(),true);
   db.ref('meta/broadcaster').set({online:true, startedAt:now()});
 };
@@ -233,6 +229,18 @@ async function requestOfferAsViewer(myViewerId,name){
   });
   db.ref('viewers/'+myViewerId).update({connectedAt:now()});
   setTimeout(()=>requestsRef.child(myViewerId).remove().catch(()=>{}),60000);
+}
+
+/* Viewer auto reconnect when admin restarts broadcast */
+if(!isAdmin) {
+  const broadcasterRef = db.ref('meta/broadcaster');
+  broadcasterRef.on('value', snap => {
+    const meta = snap.val();
+    if(meta && meta.online) {
+      if(!viewerId) return;
+      requestOfferAsViewer(viewerId, nameInput.value.trim() || 'Anonymous');
+    }
+  });
 }
 
 sendMsg.onclick=()=>{ const t=msgInput.value.trim(); if(!t) return; pushChat(nameInput.value.trim()||'Anonymous',t); msgInput.value=''; }
