@@ -28,7 +28,7 @@ video { width:100%; background:#000; border-radius:8px; display:block; margin-to
 <div class="wrap">
   <div class="card center">
     <h1>🔥 Sulove Live Stream (Upgraded)</h1>
-    <p class="muted">Admin password protected. Admin can share PC or Android screen. Viewers enter a name and watch instantly. iOS cannot act as Admin.</p>
+    <p class="muted">Admin password protected. Admin can share PC or Android screen. Viewers enter a name and watch instantly.</p>
   </div>
 
   <!-- ENTRY CARD -->
@@ -95,7 +95,6 @@ video { width:100%; background:#000; border-radius:8px; display:block; margin-to
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-/* ================= FIREBASE CONFIG ================= */
 const firebaseConfig = {
   apiKey: "AIzaSyCG7g35KGyX9F9utI-lnkaViM7mQzWrO3A",
   authDomain: "livestreamproject-3f19c.firebaseapp.com",
@@ -138,21 +137,19 @@ let localStream = null;
 let pcs = {};
 let viewerId = null;
 
-/* ================= UTILS ================= */
 function now(){ return new Date().toISOString(); }
 function genId(len=8){ const s='abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
 function appendChat(text){ chatBoxes.forEach(cb=>{ const d=document.createElement('div'); d.className='chat-msg'; d.innerText=text; cb.appendChild(d); cb.scrollTop=cb.scrollHeight; }); }
 function isMobile(){ return /Mobi|Android/i.test(navigator.userAgent); }
-function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
-/* ================= VIEWER COUNT ================= */
 const viewerCountRef = db.ref('meta/viewerCount');
 viewerCountRef.once('value', snap=>{ if(snap.val()===null) viewerCountRef.set(0); });
-viewerCountRef.on('value', snap=>{ const v = snap.val()||0; viewerCountAdmin.innerText=v; viewerCountViewer.innerText=v; });
+viewerCountRef.on('value', snap=>{
+  const v = snap.val()||0; viewerCountAdmin.innerText=v; viewerCountViewer.innerText=v;
+});
 async function incViewerCount(){ await viewerCountRef.transaction(n=>(n||0)+1); }
 async function decViewerCount(){ await viewerCountRef.transaction(n=>Math.max(0,(n||0)-1)); }
 
-/* ================= CHAT ================= */
 const chatRef = db.ref('chat');
 chatRef.on('child_added', snap=>{ appendChat(snap.val().time + ' ' + snap.val().text); });
 function pushChat(name,text){ chatRef.push({time:now(), text:name+': '+text}); }
@@ -162,27 +159,11 @@ clearChatBtn.onclick=()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatBox
 enterBtn.onclick=()=>{
   const pass = passwordInput.value.trim();
   const name = nameInput.value.trim();
-
-  if(isIOS()){
-    // iOS cannot be admin
-    isAdmin=false;
-    viewerId=genId(10);
-    entryCard.style.display='none'; adminCard.style.display='none'; viewerCard.style.display='block';
-    viewerNameLabel.innerText = name || 'Anonymous';
-    db.ref('viewers/'+viewerId).set({name:name||'Anonymous', joined:now()}); incViewerCount();
-    requestOfferAsViewer(viewerId,name||'Anonymous');
-    appendChat("System: iOS detected. Joined as viewer only.");
-    window.addEventListener('unload',()=>{ db.ref('viewers/'+viewerId).remove(); decViewerCount(); });
-    return;
-  }
-
   if(pass===ADMIN_PASSWORD){
-    isAdmin=true;
-    entryCard.style.display='none'; adminCard.style.display='block'; viewerCard.style.display='none';
+    isAdmin=true; entryCard.style.display='none'; adminCard.style.display='block'; viewerCard.style.display='none';
     appendChat('System: Admin signed in at '+now()); listenForViewerRequests();
   } else {
-    isAdmin=false; viewerId=genId(10);
-    entryCard.style.display='none'; adminCard.style.display='none'; viewerCard.style.display='block';
+    isAdmin=false; viewerId=genId(10); entryCard.style.display='none'; adminCard.style.display='none'; viewerCard.style.display='block';
     viewerNameLabel.innerText=name||'Anonymous';
     db.ref('viewers/'+viewerId).set({name:name||'Anonymous', joined:now()}); incViewerCount();
     requestOfferAsViewer(viewerId,name||'Anonymous');
@@ -215,12 +196,17 @@ async function listenForViewerRequests(){
 
 /* ================= ADMIN: START / STOP ================= */
 startBtn.onclick=async()=>{
-  if(!navigator.mediaDevices.getDisplayMedia){ alert('Screen sharing unsupported. Use Chrome 89+ on PC/Android.'); return; }
-  try{ localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); }catch(e){ alert('Cannot share: '+e.message); return; }
-  localVideo.srcObject=localStream;
-  appendChat('Admin: started sharing at '+now()+' (Mobile: '+isMobile()+')');
-  db.ref('meta/broadcaster').set({online:true,startedAt:now(), mobile:isMobile()});
+  try{
+    localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    localVideo.srcObject=localStream;
+    appendChat('Admin: started sharing at '+now()+' (Mobile: '+isMobile()+')');
+    db.ref('meta/broadcaster').set({online:true,startedAt:now(), mobile:isMobile()});
+  } catch(e){
+    alert('Cannot share screen: '+e.message);
+    console.error('Screen share error:', e);
+  }
 };
+
 stopBtn.onclick=()=>{
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; localVideo.srcObject=null; }
   db.ref('meta/broadcaster').set({online:false,stoppedAt:now()});
@@ -260,3 +246,4 @@ viewersListRef.on('child_removed',snap=>{ const el=document.getElementById('view
 </script>
 </body>
 </html>
+
