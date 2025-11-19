@@ -19,6 +19,15 @@
         font-style: italic;
         margin: 5px 0;
     }
+    #clearBtn {
+        display: none;
+        margin-top: 10px;
+        padding: 8px 15px;
+        background: red;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
 </style>
 </head>
 <body>
@@ -32,6 +41,8 @@
 <input id="nameInput" placeholder="Enter Name" style="width:30%;padding:8px;">
 <input id="msgInput" placeholder="Enter Message" style="width:45%;padding:8px;">
 <button onclick="sendMessage()" style="padding:8px;">Send</button>
+
+<button id="clearBtn" onclick="clearChat()">Clear Chat (Admin Only)</button>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
@@ -66,7 +77,8 @@ if (!userName) {
 }
 
 if (userName.toLowerCase() === "admin") {
-    userColor = "red";  // admin is always red
+    userColor = "red";
+    document.getElementById("clearBtn").style.display = "inline-block";  // show clear button
 } else {
     if (!userColor) {
         userColor = "#" + Math.floor(Math.random() * 16777215).toString(16);
@@ -77,21 +89,18 @@ if (userName.toLowerCase() === "admin") {
 document.getElementById("nameInput").value = userName;
 
 // --------------------------------------------------
-//  SEND MESSAGE
+//  SEND USER MESSAGE
 // --------------------------------------------------
 function sendMessage() {
     const name = document.getElementById("nameInput").value.trim();
     const msg = document.getElementById("msgInput").value.trim();
 
-    if (name === "" || msg === "") return;
-
-    localStorage.setItem("chatUser", name);
+    if (msg === "") return;
 
     db.ref("liveChat/messages").push({
         name: name,
         text: msg,
         color: (name.toLowerCase() === "admin") ? "red" : userColor,
-        time: Date.now(),
         type: "user"
     });
 
@@ -99,25 +108,34 @@ function sendMessage() {
 }
 
 // --------------------------------------------------
-//  SYSTEM MESSAGE WITH TIME
+//  SYSTEM MESSAGE (SHOWS TIME)
 // --------------------------------------------------
 function sendSystemMessage(text) {
-    const now = new Date();
-    const formattedTime = now.toLocaleTimeString();
+    const time = new Date().toLocaleTimeString();
 
     db.ref("liveChat/messages").push({
         name: "SYSTEM",
-        text: text + " (" + formattedTime + ")",
+        text: `${text} (${time})`,
         color: "gray",
         type: "system"
     });
 }
 
-// Example: system message on load
-sendSystemMessage("User connected");
+// --------------------------------------------------
+//  ADMIN CLEAR CHAT
+// --------------------------------------------------
+function clearChat() {
+    if (userName.toLowerCase() !== "admin") return;
+
+    // Delete entire chat tree
+    db.ref("liveChat/messages").remove();
+
+    // Add system message
+    sendSystemMessage("Chat was cleared by Admin");
+}
 
 // --------------------------------------------------
-//  DISPLAY MESSAGES LIVE
+//  DISPLAY CHAT LIVE
 // --------------------------------------------------
 db.ref("liveChat/messages").on("child_added", (data) => {
     const msg = data.val();
@@ -135,7 +153,16 @@ db.ref("liveChat/messages").on("child_added", (data) => {
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 });
+
+// --------------------------------------------------
+//  CLEAR LOCAL CHAT BOX WHEN DB CLEARS
+// --------------------------------------------------
+db.ref("liveChat/messages").on("value", () => {
+    const box = document.getElementById("chatBox");
+    box.innerHTML = "";
+});
 </script>
 
 </body>
 </html>
+
