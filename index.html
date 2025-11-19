@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html>
 <head>
@@ -5,20 +6,20 @@
 <title>Sulove Classic Live</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
-  body { font-family: Georgia, serif; background:#e6e6e6; color:#111; margin:0; padding:20px; display:flex; justify-content:center; }
-  .wrap { width:100%; max-width:800px; }
-  .card { background:#fff; border-radius:6px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,0.08); margin-bottom:12px; }
-  h1,h2 { margin:6px 0 12px 0; font-weight:600; }
-  input[type=text] { width:100%; padding:8px; border-radius:4px; border:1px solid #ccc; box-sizing:border-box; }
-  button { background:#333; color:#fff; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; }
-  button.ghost { background:transparent; color:#333; border:1px solid #aaa; }
-  video { width:100%; background:#000; border-radius:4px; display:block; margin-top:10px; }
-  #chat { height:200px; overflow:auto; background:#fafafa; padding:8px; border-radius:4px; border:1px solid #ddd; font-family:monospace; font-size:14px; }
-  .chat-msg { margin:4px 0; padding:4px 6px; border-radius:4px; background:#f0f0f0; }
-  .small { font-size:13px; color:#555; }
-  .center { text-align:center; }
-  .controls { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-  @media (max-width:600px){ .controls{flex-direction:column;} }
+body { font-family: Georgia, serif; background:#e6e6e6; color:#111; margin:0; padding:20px; display:flex; justify-content:center; }
+.wrap { width:100%; max-width:800px; }
+.card { background:#fff; border-radius:6px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,0.08); margin-bottom:12px; }
+h1,h2 { margin:6px 0 12px 0; font-weight:600; }
+input[type=text] { width:100%; padding:8px; border-radius:4px; border:1px solid #ccc; box-sizing:border-box; }
+button { background:#333; color:#fff; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; }
+button.ghost { background:transparent; color:#333; border:1px solid #aaa; }
+video { width:100%; background:#000; border-radius:4px; display:block; margin-top:10px; }
+#chat { height:200px; overflow:auto; background:#fafafa; padding:8px; border-radius:4px; border:1px solid #ddd; font-family:monospace; font-size:14px; }
+.chat-msg { margin:4px 0; padding:4px 6px; border-radius:4px; background:#f0f0f0; }
+.small { font-size:13px; color:#555; }
+.center { text-align:center; }
+.controls { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+@media (max-width:600px){ .controls{flex-direction:column;} }
 </style>
 </head>
 <body>
@@ -78,12 +79,12 @@
 
 </div>
 
-<!-- Firebase v8 -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-// ===== Firebase Setup =====
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCG7g35KGyX9F9utI-lnkaViM7mQzWrO3A",
   authDomain: "livestreamproject-3f19c.firebaseapp.com",
@@ -96,7 +97,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ===== UI References =====
+// UI Refs
 const entryCard = document.getElementById('entryCard');
 const adminCard = document.getElementById('adminCard');
 const viewerCard = document.getElementById('viewerCard');
@@ -122,13 +123,14 @@ const leaveBtn = document.getElementById('leaveBtn');
 let isAdmin = false;
 let localStream = null;
 let viewerId = null;
+let pcs = {}; // WebRTC peers
 
-// ===== Utils =====
+// Utils
 function genId(len=10){ const s='abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
 function now(){ return new Date().toLocaleTimeString(); }
 function appendChat(msg, admin=false){
   const div = document.createElement('div');
-  div.className = 'chat-msg';
+  div.className='chat-msg';
   div.textContent = msg;
   chatAdmin.appendChild(div);
   chatViewer.appendChild(div);
@@ -136,78 +138,126 @@ function appendChat(msg, admin=false){
   chatViewer.scrollTop = chatViewer.scrollHeight;
 }
 
-// ===== Viewer Count =====
+// Viewer Count
 const viewerCountRef = db.ref('meta/viewerCount');
 viewerCountRef.once('value', snap=>{ if(snap.val()===null) viewerCountRef.set(0); });
 viewerCountRef.on('value', snap=>{
-  const v = snap.val() || 0;
+  const v = snap.val()||0;
   viewerCountAdmin.innerText = v;
   viewerCountViewer.innerText = v;
 });
-async function incViewerCount(){ await viewerCountRef.transaction(n => (n||0)+1); }
-async function decViewerCount(){ await viewerCountRef.transaction(n => Math.max(0,(n||0)-1)); }
+async function incViewerCount(){ await viewerCountRef.transaction(n=>(n||0)+1); }
+async function decViewerCount(){ await viewerCountRef.transaction(n=>Math.max(0,(n||0)-1)); }
 
-// ===== Chat =====
+// Chat
 const chatRef = db.ref('chat');
-chatRef.on('child_added', snap=>{ const val = snap.val(); appendChat(val.text, val.admin); });
+chatRef.on('child_added', snap=>{ const val=snap.val(); appendChat(val.text, val.admin); });
 function pushChat(text, admin=false){ chatRef.push({text,admin}); }
 clearChatBtn.onclick = ()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatAdmin.innerHTML=''; chatViewer.innerHTML=''; };
 
-// ===== Entry =====
+// Entry
 enterBtn.onclick = ()=>{
-  const name = nameInput.value.trim() || 'Anonymous';
-  if(name.toLowerCase() === 'admin'){ // Admin login
-    isAdmin = true;
+  const name = nameInput.value.trim()||'Anonymous';
+  if(name.toLowerCase()==='admin'){ // Admin login
+    isAdmin=true;
     entryCard.style.display='none';
     adminCard.style.display='block';
     viewerCard.style.display='none';
     appendChat('System: Admin joined', true);
+    listenForViewers(); // Start WebRTC signaling
   }else{
-    isAdmin = false;
-    viewerId = genId(10);
+    isAdmin=false;
+    viewerId=genId();
     entryCard.style.display='none';
     adminCard.style.display='none';
     viewerCard.style.display='block';
-    viewerNameLabel.innerText = name;
+    viewerNameLabel.innerText=name;
     db.ref('viewers/'+viewerId).set({joined:now()});
     incViewerCount();
+    requestStreamAsViewer(viewerId); // WebRTC viewer request
     appendChat('System: '+name+' joined');
   }
 };
 
-// ===== Admin Screen Share =====
-startBtn.onclick = async ()=>{
+// Admin Screen Share
+startBtn.onclick=async ()=>{
   try{
-    localStream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-    localVideo.srcObject = localStream;
+    localStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    localVideo.srcObject=localStream;
     appendChat('Admin: started sharing', true);
     db.ref('meta/broadcaster').set({online:true});
-  }catch(e){ alert('Screen capture not supported: '+e.message); }
+  }catch(e){ alert('Screen capture error: '+e.message); }
 };
-stopBtn.onclick = ()=>{
+stopBtn.onclick=()=>{
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; localVideo.srcObject=null; }
   db.ref('meta/broadcaster').set({online:false});
   appendChat('Admin: stopped sharing', true);
 };
 
-// ===== Messaging =====
-sendMsg.onclick = ()=>{ const text=msgInput.value.trim(); if(!text) return; pushChat('Viewer: '+text); msgInput.value=''; };
-sendAdminMsg.onclick = ()=>{ if(!isAdmin) return; const text=adminMsg.value.trim(); if(!text) return; pushChat('Admin: '+text, true); adminMsg.value=''; };
+// Messaging
+sendMsg.onclick=()=>{ const text=msgInput.value.trim(); if(!text) return; pushChat('Viewer: '+text); msgInput.value=''; };
+sendAdminMsg.onclick=()=>{ if(!isAdmin) return; const text=adminMsg.value.trim(); if(!text) return; pushChat('Admin: '+text, true); adminMsg.value=''; };
 
-// ===== Fullscreen & Leave =====
-fullscreenBtn.onclick = ()=>{ if(remoteVideo.requestFullscreen) remoteVideo.requestFullscreen(); else if(remoteVideo.webkitRequestFullscreen) remoteVideo.webkitRequestFullscreen(); };
-leaveBtn.onclick = ()=>{
+// Fullscreen & Leave
+fullscreenBtn.onclick=()=>{ if(remoteVideo.requestFullscreen) remoteVideo.requestFullscreen(); else if(remoteVideo.webkitRequestFullscreen) remoteVideo.webkitRequestFullscreen(); };
+leaveBtn.onclick=()=>{
   if(viewerId){ decViewerCount(); db.ref('viewers/'+viewerId).remove(); }
   location.reload();
 };
 
-// ===== Cleanup =====
+// Cleanup
 window.addEventListener('beforeunload', ()=>{
   if(!isAdmin && viewerId){ decViewerCount(); db.ref('viewers/'+viewerId).remove(); }
 });
 
-// ===== WebRTC logic placeholder =====
-// Implement your listenForViewerRequests & requestOfferAsViewer logic here.
+// ===== WebRTC Functions =====
+async function listenForViewers(){
+  const viewersRef=db.ref('viewers');
+  viewersRef.on('child_added', snap=>{
+    const id=snap.key;
+    if(pcs[id]) return; // Already exists
+    const pc=new RTCPeerConnection();
+    localStream.getTracks().forEach(track=>pc.addTrack(track, localStream));
+    pc.onicecandidate=e=>{ if(e.candidate) db.ref('webrtc/'+id+'/candidate').push(e.candidate.toJSON()); };
+    pcs[id]=pc;
+
+    pc.createOffer().then(offer=>{
+      pc.setLocalDescription(offer);
+      db.ref('webrtc/'+id+'/offer').set(offer.toJSON());
+    });
+
+    // Listen for answer
+    db.ref('webrtc/'+id+'/answer').on('value', snap=>{
+      const ans=snap.val();
+      if(ans) pc.setRemoteDescription(new RTCSessionDescription(ans));
+    });
+    // Listen for ICE candidates from viewer
+    db.ref('webrtc/'+id+'/candidate').on('child_added', snap=>{
+      const cand=snap.val();
+      if(cand) pc.addIceCandidate(new RTCIceCandidate(cand));
+    });
+  });
+}
+
+async function requestStreamAsViewer(id){
+  const pc=new RTCPeerConnection();
+  pcs[id]=pc;
+  pc.ontrack=e=>{ remoteVideo.srcObject=e.streams[0]; };
+  pc.onicecandidate=e=>{ if(e.candidate) db.ref('webrtc/'+id+'/candidate').push(e.candidate.toJSON()); };
+
+  const offerSnap=await db.ref('webrtc/'+id+'/offer').once('value');
+  const offer=offerSnap.val();
+  if(!offer) return setTimeout(()=>requestStreamAsViewer(id),1000); // Wait for admin
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer=await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  db.ref('webrtc/'+id+'/answer').set(answer.toJSON());
+
+  db.ref('webrtc/'+id+'/candidate').on('child_added', snap=>{
+    const cand=snap.val();
+    if(cand) pc.addIceCandidate(new RTCIceCandidate(cand));
+  });
+}
 
 </script>
 </body>
