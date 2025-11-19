@@ -1,148 +1,502 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>FreeLive</title>
-<style>
-body{font-family:Arial,sans-serif; background:#111; color:#eee; text-align:center; padding:20px;}
-button{padding:10px 15px; margin:6px; cursor:pointer;}
-input{padding:8px; width:220px;}
-video{width:90%; max-width:1000px; background:#000; border:2px solid #333; margin-top:12px;}
-#roomInfo,#viewers{font-size:13px;color:#9df; margin-top:8px;}
-</style>
-
-<!-- Firebase Compat SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
+  <meta charset="utf-8" />
+  <title>Sulove Live — Single File</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f6f8; color:#111; margin:0; padding:18px; display:flex; justify-content:center; }
+    .wrap { width:100%; max-width:900px; }
+    .card { background:#fff; border-radius:10px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,0.06); margin-bottom:12px; }
+    h1,h2 { margin:6px 0 12px 0; font-weight:600; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    input[type=text], input[type=password], textarea { width:100%; padding:10px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
+    button { background:#111; color:#fff; border:none; padding:10px 14px; border-radius:6px; cursor:pointer; }
+    button.ghost { background:transparent; color:#111; border:1px solid #ddd; }
+    video { width:100%; background:#000; border-radius:8px; display:block; margin-top:10px; }
+    #chat { height:220px; overflow:auto; background:#fafafa; padding:8px; border-radius:6px; border:1px solid #eee; text-align:left; }
+    .chat-msg { margin:6px 0; padding:6px; border-radius:6px; background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.03); }
+    .small { font-size:13px; color:#666; }
+    .center { text-align:center; }
+    .muted { color:#666; font-size:13px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    @media (max-width:600px){ .row{flex-direction:column;} .controls{flex-direction:column;} }
+  </style>
 </head>
 <body>
-<h1>FreeLive — Broadcast your screen</h1>
+  <div class="wrap">
+    <div class="card center">
+      <h1>🔥 Sulove Live Stream</h1>
+      <p class="muted">Admin password protected. Admin can share PC or Android screen. Viewers enter a name and watch instantly.</p>
+    </div>
 
-<div>
-<button id="startBroadcast">Start Broadcast</button>
-<button id="stopBroadcast" style="display:none;">Stop Broadcast</button><br>
-<input id="roomInput" placeholder="Enter Room ID to join">
-<button id="joinBtn">Join as Viewer</button>
-<p id="roomInfo"></p>
-<p id="viewers"></p>
-</div>
+    <!-- LOGIN / CHOICE -->
+    <div class="card" id="entryCard">
+      <h2>Enter</h2>
+      <div class="row">
+        <input id="nameInput" type="text" placeholder="If viewer: type your name here (example: Sita). If admin: leave name blank and enter password below." />
+        <input id="passwordInput" type="password" placeholder="Admin password (Sulove@123)" />
+        <button id="enterBtn">Enter</button>
+      </div>
+      <p class="small">If you enter correct admin password, you'll see the Admin controls. Otherwise you'll join as a viewer.</p>
+    </div>
 
-<video id="localVideo" autoplay muted playsinline></video>
-<video id="remoteVideo" autoplay playsinline style="display:none;"></video>
+    <!-- ADMIN PANEL -->
+    <div class="card" id="adminCard" style="display:none;">
+      <h2>Admin Panel</h2>
+      <div class="row">
+        <button id="startBtn">Start Screen Share</button>
+        <button id="stopBtn" class="ghost">Stop Sharing</button>
+        <button id="clearChatBtn" class="ghost">Clear Chat</button>
+      </div>
 
-<script>
-  // ===== Your Firebase Config =====
-  const firebaseConfig = {
-    apiKey: "AIzaSyBAVVKS0V3TY0R26M6mstewZHaJydsydfg",
-    authDomain: "freelive-19807.firebaseapp.com",
-    databaseURL: "https://freelive-19807-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "freelive-19807",
-    storageBucket: "freelive-19807.firebasestorage.app",
-    messagingSenderId: "262588703828",
-    appId: "1:262588703828:web:98f0fc7946b626243279c1"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+      <div style="margin-top:10px;">
+        <div class="small">Viewer Count: <strong id="viewerCountAdmin">0</strong></div>
+      </div>
 
-  const $ = id=>document.getElementById(id);
-  let isBroadcaster=false;
-  let localStream=null;
-  let myRoomId=null;
-  let viewerPCs={};
-  const rtcConfig={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+      <video id="localVideo" autoplay playsinline muted></video>
 
-  function randomId(len=7){return Math.random().toString(36).slice(2,2+len);}
-  function updateViewers(){ $('viewers').innerText=`Connected viewers: ${Object.keys(viewerPCs).length}`; }
+      <h3 style="margin-top:12px">Chat (Admin)</h3>
+      <div id="chat" aria-live="polite"></div>
 
-  async function stopBroadcast(){
-    Object.keys(viewerPCs).forEach(id=>{
-      try{viewerPCs[id].pc.close();}catch(e){}
-      try{viewerPCs[id].vCandRef.off();}catch(e){}
+      <div class="row" style="margin-top:8px;">
+        <input id="adminMsg" type="text" placeholder="Type message as Admin and press Send" />
+        <button id="sendAdminMsg">Send</button>
+      </div>
+    </div>
+
+    <!-- VIEWER PANEL -->
+    <div class="card" id="viewerCard" style="display:none;">
+      <h2>Viewer</h2>
+
+      <div class="small">You are: <strong id="viewerNameLabel"></strong></div>
+      <div style="margin-top:8px;">
+        <video id="remoteVideo" autoplay playsinline controls></video>
+      </div>
+
+      <div class="controls">
+        <button id="fullscreenBtn">Full Screen</button>
+        <button id="leaveBtn" class="ghost">Leave</button>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="small">Viewer Count: <strong id="viewerCountViewer">0</strong></div>
+      </div>
+
+      <h3 style="margin-top:12px">Live Chat</h3>
+      <div id="chat" aria-live="polite"></div>
+
+      <div class="row" style="margin-top:8px;">
+        <input id="msgInput" type="text" placeholder="Type message..." />
+        <button id="sendMsg">Send</button>
+      </div>
+    </div>
+
+    <div class="card small center" style="margin-top:10px;">
+      <div>Built with Firebase Realtime DB as signalling (free). For iOS broadcasting you need a native app (ReplayKit).</div>
+    </div>
+  </div>
+
+  <!-- Firebase v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+/* ============================
+   CONFIG: your provided Firebase config
+   ============================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCG7g35KGyX9F9utI-lnkaViM7mQzWrO3A",
+  authDomain: "livestreamproject-3f19c.firebaseapp.com",
+  databaseURL: "https://livestreamproject-3f19c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "livestreamproject-3f19c",
+  storageBucket: "livestreamproject-3f19c.firebasestorage.app",
+  messagingSenderId: "639236892430",
+  appId: "1:639236892430:web:c2a888d27759487d91d95f"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ========== App constants ========== */
+const ADMIN_PASSWORD = "Sulove@123";
+
+/* ========== UI refs ========== */
+const entryCard = document.getElementById('entryCard');
+const adminCard = document.getElementById('adminCard');
+const viewerCard = document.getElementById('viewerCard');
+
+const nameInput = document.getElementById('nameInput');
+const passwordInput = document.getElementById('passwordInput');
+const enterBtn = document.getElementById('enterBtn');
+
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const localVideo = document.getElementById('localVideo');
+
+const remoteVideo = document.getElementById('remoteVideo');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const leaveBtn = document.getElementById('leaveBtn');
+
+const viewerCountAdmin = document.getElementById('viewerCountAdmin');
+const viewerCountViewer = document.getElementById('viewerCountViewer');
+const viewerNameLabel = document.getElementById('viewerNameLabel');
+
+const chatBox = document.querySelectorAll('#chat')[0]; // single chat box element
+const adminMsg = document.getElementById('adminMsg');
+const sendAdminMsg = document.getElementById('sendAdminMsg');
+
+const msgInput = document.getElementById('msgInput');
+const sendMsg = document.getElementById('sendMsg');
+const clearChatBtn = document.getElementById('clearChatBtn');
+
+/* ========== Application state ========== */
+let isAdmin = false;
+let localStream = null;
+let pcs = {}; // map viewerId -> RTCPeerConnection (admin side)
+let viewerId = null; // viewer unique id when acting as viewer
+
+/* ========== Helpers ========== */
+function genId(len=8){ const s = 'abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
+function now(){ return new Date().toISOString(); }
+function appendChat(text){
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerText = text;
+  chatBox.appendChild(div);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+/* ========== Viewer Count management ========== */
+const viewerCountRef = db.ref('meta/viewerCount');
+
+/* ensure viewer count is present */
+viewerCountRef.once('value', snap => { if (snap.val() === null) viewerCountRef.set(0); });
+viewerCountRef.on('value', snap => {
+  const v = snap.val() || 0;
+  viewerCountAdmin.innerText = v;
+  viewerCountViewer.innerText = v;
+});
+
+/* increment / decrement safely using transaction */
+async function incViewerCount(){
+  await viewerCountRef.transaction(n => (n||0) + 1);
+}
+async function decViewerCount(){
+  await viewerCountRef.transaction(n => Math.max(0, (n||0) - 1));
+}
+
+/* cleanup on unload (for viewers) */
+window.addEventListener('beforeunload', () => {
+  if(!isAdmin && viewerId) {
+    decViewerCount();
+    // remove presence node
+    db.ref('viewers/' + viewerId).remove().catch(()=>{});
+  }
+  // if admin leaves, stop stream and clear signalling (admin should press Stop)
+});
+
+/* ========== Chat ========== */
+const chatRef = db.ref('chat');
+chatRef.on('child_added', snap => {
+  const v = snap.val();
+  appendChat(v.time + '  ' + v.text);
+});
+function pushChat(name, text){
+  chatRef.push({ time: now(), text: `${name}: ${text}` });
+}
+
+/* Clear chat (admin action) */
+clearChatBtn.onclick = () => {
+  if(!isAdmin) return;
+  db.ref('chat').remove();
+  chatBox.innerHTML = '';
+};
+
+/* ========== Admin / Viewer entry ========== */
+enterBtn.onclick = () => {
+  const pass = passwordInput.value.trim();
+  const name = nameInput.value.trim();
+
+  if(pass === ADMIN_PASSWORD) {
+    // admin mode
+    isAdmin = true;
+    entryCard.style.display='none';
+    adminCard.style.display='block';
+    viewerCard.style.display='none';
+    appendChat('System: Admin signed in at ' + now());
+    // admin listens for viewer join requests (see below)
+    listenForViewerRequests();
+  } else {
+    // viewer mode
+    isAdmin = false;
+    viewerId = genId(10);
+    entryCard.style.display='none';
+    adminCard.style.display='none';
+    viewerCard.style.display='block';
+    viewerNameLabel.innerText = name || 'Anonymous';
+    // set presence
+    db.ref('viewers/' + viewerId).set({ name: name || 'Anonymous', joined: now() });
+    incViewerCount();
+    // signal join
+    requestOfferAsViewer(viewerId, name || 'Anonymous');
+    appendChat('System: Viewer joined as ' + (name||'Anonymous') + ' at ' + now());
+    // remove presence on disconnect
+    window.addEventListener('unload', ()=> { db.ref('viewers/' + viewerId).remove(); });
+  }
+};
+
+/* ========== Admin: listen for viewer join requests ========== */
+/* Mechanism:
+   - Viewer creates a request node: requests/<viewerId> = {name, createdAt}
+   - Admin listens child_added on requests, creates an RTCPeerConnection for that viewer,
+     adds localStream tracks to it, creates offer and writes offers/<viewerId> = offer
+   - Viewer listens on offers/<viewerId>, sets remoteDesc, creates answer, writes answers/<viewerId>
+   - Admin listens on answers/<viewerId> to finalize connection
+   - ICE candidates: viewer -> ice/viewer/<viewerId>, admin -> ice/admin/<viewerId>
+*/
+
+const requestsRef = db.ref('requests');
+const offersRef = db.ref('offers');
+const answersRef = db.ref('answers');
+const iceViewerRefRoot = db.ref('ice/viewer');
+const iceAdminRefRoot = db.ref('ice/admin');
+
+async function listenForViewerRequests(){
+  // Listen for new viewer requests
+  requestsRef.on('child_added', async snap => {
+    const vId = snap.key;
+    const data = snap.val();
+    if(!vId) return;
+    // If no local stream yet, we can't create peer connections. Admin must press Start.
+    if(!localStream) {
+      // optionally notify viewer that broadcaster not ready
+      db.ref('offers/' + vId).set({ error: 'broadcaster-not-ready' });
+      return;
+    }
+    // create peer connection for this viewer
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
-    viewerPCs={};
-    if(localStream){localStream.getTracks().forEach(t=>t.stop()); localStream=null;}
-    localVideo.srcObject=null;
-    $('startBroadcast').style.display='inline-block';
-    $('stopBroadcast').style.display='none';
-    if(myRoomId) db.ref(`rooms/${myRoomId}`).remove().catch(()=>{});
-    $('roomInfo').innerText='';
-    updateViewers();
+    pcs[vId] = pc;
+
+    // add tracks
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    // admin -> viewer ICE
+    pc.onicecandidate = e => {
+      if(e.candidate) {
+        iceAdminRefRoot.child(vId).push(JSON.stringify(e.candidate));
+      }
+    };
+
+    // create offer
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await offersRef.child(vId).set(JSON.stringify(offer));
+    } catch(err){ console.error('offer error', err); }
+
+    // listen for answer for this viewer
+    answersRef.child(vId).on('value', async s => {
+      const val = s.val();
+      if(!val) return;
+      try {
+        const answer = JSON.parse(val);
+        await pc.setRemoteDescription(answer);
+        // once connected remove the request node (optional)
+        requestsRef.child(vId).remove().catch(()=>{});
+      } catch(e){ console.warn('answer handling error', e); }
+    });
+
+    // listen for ICE from viewer
+    iceViewerRefRoot.child(vId).on('child_added', snapIce => {
+      try {
+        const ice = JSON.parse(snapIce.val());
+        pc.addIceCandidate(new RTCIceCandidate(ice)).catch(()=>{});
+      } catch(e){ console.warn('ice add error', e); }
+    });
+
+    // cleanup when connection state closed
+    pc.onconnectionstatechange = () => {
+      if(pc.connectionState === 'closed' || pc.connectionState === 'failed' || pc.connectionState === 'disconnected'){
+        // remove listeners and pc
+        answersRef.child(vId).off();
+        iceViewerRefRoot.child(vId).off();
+        iceAdminRefRoot.child(vId).remove().catch(()=>{});
+        offersRef.child(vId).remove().catch(()=>{});
+        delete pcs[vId];
+      }
+    };
+  });
+}
+
+/* ========== Admin: start/stop sharing ========== */
+startBtn.onclick = async () => {
+  try {
+    // request screen + audio
+    localStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true });
+  } catch(e){
+    alert('Could not getDisplayMedia(): ' + e.message);
+    return;
   }
 
-  $('startBroadcast').onclick=async ()=>{
-    isBroadcaster=true;
-    try{
-      localStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:20}, audio:true});
-    }catch(e){
-      localStream=await navigator.mediaDevices.getUserMedia({video:{frameRate:20}, audio:true});
+  localVideo.srcObject = localStream;
+  appendChat('Admin: started sharing at ' + now());
+  // set a flag in DB that broadcaster is online (single broadcast at a time)
+  db.ref('meta/broadcaster').set({ online: true, startedAt: now() });
+
+  // clean up offers/answers/ice for old sessions (optional)
+  // we intentionally keep simple: admin listens for requests as viewers arrive (listenForViewerRequests)
+  // If admin was already listening, nothing else needed.
+};
+
+stopBtn.onclick = () => {
+  if(localStream) {
+    localStream.getTracks().forEach(t=>t.stop());
+    localStream = null;
+    localVideo.srcObject = null;
+  }
+  // remove meta broadcaster online and wipe signalling nodes for a fresh session
+  db.ref('meta/broadcaster').set({ online: false, stoppedAt: now() });
+  // Remove pending offers/answers/requests/ICE to ensure single broadcast at a time
+  requestsRef.remove().catch(()=>{});
+  offersRef.remove().catch(()=>{});
+  answersRef.remove().catch(()=>{});
+  iceViewerRefRoot.remove().catch(()=>{});
+  iceAdminRefRoot.remove().catch(()=>{});
+  appendChat('Admin: stopped sharing at ' + now());
+  // close all PCs
+  Object.keys(pcs).forEach(id => {
+    try { pcs[id].close(); } catch(e){}
+    // remove listeners if any
+    answersRef.child(id).off();
+    iceViewerRefRoot.child(id).off();
+  });
+  pcs = {};
+};
+
+/* ========== Viewer: request offer and connect ========== */
+async function requestOfferAsViewer(myViewerId, name){
+  // create a request node that admin will see
+  await requestsRef.child(myViewerId).set({ name: name, createdAt: now() });
+
+  // Prepare RTCPeerConnection and listen for offer from admin
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+  // viewer -> admin ICE: push to ice/viewer/<viewerId>
+  pc.onicecandidate = e => {
+    if(e.candidate) {
+      iceViewerRefRoot.child(myViewerId).push(JSON.stringify(e.candidate));
     }
-    localVideo.srcObject=localStream;
-    $('startBroadcast').style.display='none';
-    $('stopBroadcast').style.display='inline-block';
-    myRoomId=randomId(8);
-    $('roomInfo').innerHTML=`Room ID: <strong>${myRoomId}</strong> — share with viewers.`;
-    await db.ref(`rooms/${myRoomId}`).set({createdAt:Date.now(), broadcaster:true});
-    const offersRef=db.ref(`rooms/${myRoomId}/offers`);
-    offersRef.on('child_added', async snap=>{
-      const viewerId=snap.key;
-      const offer=snap.val();
-      if(!offer || viewerPCs[viewerId]) return;
-      const pc=new RTCPeerConnection(rtcConfig);
-      localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-      pc.onicecandidate=event=>{
-        if(event.candidate)
-          db.ref(`rooms/${myRoomId}/broadcasterCandidates/${viewerId}`).push().set(event.candidate.toJSON()).catch(console.error);
-      };
-      try{await pc.setRemoteDescription(new RTCSessionDescription(offer));}catch(e){console.error(e);}
-      const answer=await pc.createAnswer();
+  };
+
+  // viewer receives tracks
+  pc.ontrack = e => {
+    // attach remote stream
+    remoteVideo.srcObject = e.streams[0];
+  };
+
+  // listen for admin offer for this viewer
+  offersRef.child(myViewerId).on('value', async snap => {
+    const val = snap.val();
+    if(!val) return;
+    const offer = JSON.parse(val);
+    if(offer.error === 'broadcaster-not-ready'){
+      appendChat('System: broadcaster not ready yet. Please wait...');
+      return;
+    }
+    try {
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      await db.ref(`rooms/${myRoomId}/answers/${viewerId}`).set(pc.localDescription.toJSON());
-      const vCandRef=db.ref(`rooms/${myRoomId}/viewerCandidates/${viewerId}`);
-      vCandRef.on('child_added', snapc=>{
-        const c=snapc.val();
-        if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
+      // write answer to answers/<viewerId>
+      await answersRef.child(myViewerId).set(JSON.stringify(answer));
+      // Listen for admin ICE candidates
+      iceAdminRefRoot.child(myViewerId).on('child_added', s => {
+        try {
+          const ice = JSON.parse(s.val());
+          pc.addIceCandidate(new RTCIceCandidate(ice)).catch(()=>{});
+        } catch(e){ console.warn('add admin ice', e); }
       });
-      viewerPCs[viewerId]={pc,vCandRef};
-      updateViewers();
-    });
-    localStream.getTracks().forEach(t=>t.onended=()=>stopBroadcast());
-  };
+    } catch(e){ console.error('viewer offer handling error', e); }
+  });
 
-  $('stopBroadcast').onclick=stopBroadcast;
+  // save pc reference to allow cleanup if needed
+  // store a lightweight presence record so admin can see viewers list
+  db.ref('viewers/' + myViewerId).update({ connectedAt: now() });
 
-  $('joinBtn').onclick=async ()=>{
-    isBroadcaster=false;
-    const roomId=$('roomInput').value.trim();
-    if(!roomId){alert('Enter Room ID.'); return;}
-    const roomSnapshot=await db.ref(`rooms/${roomId}`).get();
-    if(!roomSnapshot.exists()){alert('Room not found.'); return;}
-    const viewerId=randomId(9);
-    const pc=new RTCPeerConnection(rtcConfig);
-    pc.ontrack=e=>{
-      $('remoteVideo').style.display='block';
-      $('remoteVideo').srcObject=e.streams[0];
-    };
-    pc.onicecandidate=event=>{
-      if(event.candidate)
-        db.ref(`rooms/${roomId}/viewerCandidates/${viewerId}`).push().set(event.candidate.toJSON()).catch(console.error);
-    };
-    const offer=await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await db.ref(`rooms/${roomId}/offers/${viewerId}`).set(pc.localDescription.toJSON());
-    const answerRef=db.ref(`rooms/${roomId}/answers/${viewerId}`);
-    answerRef.on('value', async snap=>{
-      const ans=snap.val();
-      if(ans) await pc.setRemoteDescription(new RTCSessionDescription(ans)).catch(console.error);
-    });
-    const bCandRef=db.ref(`rooms/${roomId}/broadcasterCandidates/${viewerId}`);
-    bCandRef.on('child_added', snap=>{
-      const c=snap.val();
-      if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
-    });
-    $('roomInfo').innerText=`Joined room ${roomId} as viewer ${viewerId}.`;
-  };
-</script>
+  // if you want to remove request node after some time:
+  setTimeout(()=> requestsRef.child(myViewerId).remove().catch(()=>{}), 60*1000);
+}
+
+/* ========== Viewer sending messages ========== */
+sendMsg.onclick = () => {
+  const text = msgInput.value.trim();
+  if(!text) return;
+  const name = nameInput.value.trim() || 'Anonymous';
+  pushChat(name, text);
+  msgInput.value = '';
+};
+sendAdminMsg.onclick = () => {
+  if(!isAdmin) return;
+  const text = adminMsg.value.trim();
+  if(!text) return;
+  pushChat('Admin', text);
+  adminMsg.value = '';
+};
+
+/* ========== Fullscreen ========= */
+fullscreenBtn.onclick = () => {
+  const v = remoteVideo;
+  if(!v) return;
+  if(v.requestFullscreen) v.requestFullscreen();
+  else if(v.webkitRequestFullscreen) v.webkitRequestFullscreen();
+};
+
+/* ========== Presence cleanup and viewer list (optional) ========== */
+/* When viewer enters, we already incremented viewerCount and wrote viewers/<id>.
+   Remove viewer node on unload (handled above). Also show live viewers list optionally. */
+
+// Observe viewers list and show basic messages when someone joins/leaves
+const viewersListRef = db.ref('viewers');
+viewersListRef.on('child_added', snap => {
+  const val = snap.val();
+  appendChat('System: ' + (val.name || 'Viewer') + ' joined at ' + (val.joined || now()));
+});
+viewersListRef.on('child_removed', snap => {
+  const val = snap.val();
+  if(val) appendChat('System: ' + (val.name || 'Viewer') + ' left');
+});
+
+/* ========== Edge: if viewer opens multiple tabs, avoid double counting ========== */
+(function manageLocalJoinFlag(){
+  // Use sessionStorage to mark joined per-tab; increment count only for first tab in this browser session.
+  const localFlagKey = 'sulove_live_joined';
+  function joinOnce(){
+    if(!sessionStorage.getItem(localFlagKey)){
+      sessionStorage.setItem(localFlagKey, 'yes');
+      // if we are viewer already (viewerId set) but just opened another tab, don't increment.
+    }
+  }
+  joinOnce();
+})();
+
+/* ========== Good-to-know / Notes (no code):
+   - Android Chrome supports getDisplayMedia; iOS Safari currently does not allow browser screen capture.
+   - For public production, use a TURN server (coturn) if viewers have strict NATs. Without TURN some clients may fail to connect.
+   - For many viewers (100s+), this P2P-like approach will not scale; switch to RTMP/HLS or an SFU.
+*/
+
+/* ========== Final: small safety - if viewer mode but no broadcaster yet, show message ========== */
+db.ref('meta/broadcaster').on('value', s => {
+  const meta = s.val();
+  if(!meta || !meta.online) {
+    // optional message
+    // appendChat('System: no broadcaster online right now.');
+  } else {
+    // broadcaster online
+  }
+});
+  </script>
 </body>
 </html>
