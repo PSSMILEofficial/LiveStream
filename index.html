@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -128,19 +127,19 @@ function sendSystemMessage(text) {
 function clearChat() {
     if (userName.toLowerCase() !== "admin") return;
 
-    // Remove all messages
-    db.ref("liveChat/messages").remove().then(() => {
-        // Add system message after clearing
-        sendSystemMessage("Chat was cleared by Admin");
-    });
+    // Delete entire chat tree
+    db.ref("liveChat/messages").remove();
+
+    // Add system message
+    sendSystemMessage("Chat was cleared by Admin");
 }
 
 // --------------------------------------------------
 //  DISPLAY CHAT LIVE
 // --------------------------------------------------
-const chatBox = document.getElementById("chatBox");
 db.ref("liveChat/messages").on("child_added", (data) => {
     const msg = data.val();
+    const box = document.getElementById("chatBox");
 
     let div = document.createElement("div");
 
@@ -151,16 +150,16 @@ db.ref("liveChat/messages").on("child_added", (data) => {
         div.innerHTML = `<b style="color:${msg.color}">${msg.name}</b>: ${msg.text}`;
     }
 
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
 });
 
 // --------------------------------------------------
-//  OPTIONAL: handle chat cleared
+//  CLEAR LOCAL CHAT BOX WHEN DB CLEARS
 // --------------------------------------------------
-db.ref("liveChat/messages").on("child_removed", () => {
-    // When admin clears, remove all existing messages visually
-    chatBox.innerHTML = "";
+db.ref("liveChat/messages").on("value", () => {
+    const box = document.getElementById("chatBox");
+    box.innerHTML = "";
 });
 </script>
 
