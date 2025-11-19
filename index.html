@@ -2,43 +2,39 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Sulove Live — Single File</title>
+  <title>Sulove Live — Classic</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; background:#f4f6f8; color:#111; margin:0; padding:18px; display:flex; justify-content:center; }
-    .wrap { width:100%; max-width:900px; }
-    .card { background:#fff; border-radius:10px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,0.06); margin-bottom:12px; }
+    body { font-family: Georgia, serif; background:#eaeaea; color:#111; margin:0; padding:18px; display:flex; justify-content:center; }
+    .wrap { width:100%; max-width:800px; }
+    .card { background:#fff; border-radius:6px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,0.08); margin-bottom:12px; }
     h1,h2 { margin:6px 0 12px 0; font-weight:600; }
-    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    input[type=text], input[type=password], textarea { width:100%; padding:10px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
-    button { background:#111; color:#fff; border:none; padding:10px 14px; border-radius:6px; cursor:pointer; }
-    button.ghost { background:transparent; color:#111; border:1px solid #ddd; }
-    video { width:100%; background:#000; border-radius:8px; display:block; margin-top:10px; }
-    #chat { height:220px; overflow:auto; background:#fafafa; padding:8px; border-radius:6px; border:1px solid #eee; text-align:left; }
-    .chat-msg { margin:6px 0; padding:6px; border-radius:6px; background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.03); }
-    .small { font-size:13px; color:#666; }
+    input[type=text], input[type=password], textarea { width:100%; padding:8px; border-radius:4px; border:1px solid #ccc; box-sizing:border-box; }
+    button { background:#333; color:#fff; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; }
+    button.ghost { background:transparent; color:#333; border:1px solid #aaa; }
+    video { width:100%; background:#000; border-radius:4px; display:block; margin-top:10px; }
+    #chat { height:220px; overflow:auto; background:#fafafa; padding:8px; border-radius:4px; border:1px solid #ddd; font-family:monospace; font-size:14px; }
+    .chat-msg { margin:4px 0; padding:4px 6px; border-radius:4px; background:#f0f0f0; }
+    .small { font-size:13px; color:#555; }
     .center { text-align:center; }
-    .muted { color:#666; font-size:13px; }
-    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .controls { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
     @media (max-width:600px){ .row{flex-direction:column;} .controls{flex-direction:column;} }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card center">
-      <h1>🔥 Sulove Live Stream</h1>
-      <p class="muted">Admin password protected. Admin can share PC or Android screen. Viewers enter a name and watch instantly.</p>
+      <h1>🔥 Sulove Classic Live</h1>
+      <p class="small">Admin can share screen. Viewers join instantly with a name. Classic style live streaming.</p>
     </div>
 
-    <!-- LOGIN / CHOICE -->
+    <!-- ENTRY CARD -->
     <div class="card" id="entryCard">
-      <h2>Enter</h2>
+      <h2>Enter Name</h2>
       <div class="row">
-        <input id="nameInput" type="text" placeholder="If viewer: type your name here. If admin: leave blank and enter password below." />
-        <input id="passwordInput" type="password" placeholder="Admin password (Sulove@123)" />
-        <button id="enterBtn">Enter</button>
+        <input id="nameInput" type="text" placeholder="Type your name..." />
+        <button id="enterBtn">Join</button>
       </div>
-      <p class="small">Correct admin password = Admin Panel. Otherwise you join as viewer.</p>
     </div>
 
     <!-- ADMIN PANEL -->
@@ -49,18 +45,15 @@
         <button id="stopBtn" class="ghost">Stop Sharing</button>
         <button id="clearChatBtn" class="ghost">Clear Chat</button>
       </div>
-
       <div style="margin-top:10px;">
-        <div class="small">Viewer Count: <strong id="viewerCountAdmin">0</strong></div>
+        <div class="small">Live Viewers: <strong id="viewerCountAdmin">0</strong></div>
       </div>
-
       <video id="localVideo" autoplay playsinline muted></video>
 
-      <h3 style="margin-top:12px">Chat (Admin)</h3>
-      <div id="chat" aria-live="polite"></div>
-
-      <div class="row" style="margin-top:8px;">
-        <input id="adminMsg" type="text" placeholder="Type message as Admin and press Send" />
+      <h3 style="margin-top:12px">Chat</h3>
+      <div id="chatAdmin" aria-live="polite"></div>
+      <div class="row" style="margin-top:6px;">
+        <input id="adminMsg" type="text" placeholder="Type message..." />
         <button id="sendAdminMsg">Send</button>
       </div>
     </div>
@@ -69,27 +62,20 @@
     <div class="card" id="viewerCard" style="display:none;">
       <h2>Viewer</h2>
       <div class="small">You are: <strong id="viewerNameLabel"></strong></div>
-      <div style="margin-top:8px;">
-        <video id="remoteVideo" autoplay playsinline controls></video>
-      </div>
+      <video id="remoteVideo" autoplay playsinline controls></video>
       <div class="controls">
         <button id="fullscreenBtn">Full Screen</button>
         <button id="leaveBtn" class="ghost">Leave</button>
       </div>
       <div style="margin-top:10px;">
-        <div class="small">Viewer Count: <strong id="viewerCountViewer">0</strong></div>
+        <div class="small">Live Viewers: <strong id="viewerCountViewer">0</strong></div>
       </div>
-
-      <h3 style="margin-top:12px">Live Chat</h3>
-      <div id="chat" aria-live="polite"></div>
-      <div class="row" style="margin-top:8px;">
+      <h3 style="margin-top:12px">Chat</h3>
+      <div id="chatViewer" aria-live="polite"></div>
+      <div class="row" style="margin-top:6px;">
         <input id="msgInput" type="text" placeholder="Type message..." />
         <button id="sendMsg">Send</button>
       </div>
-    </div>
-
-    <div class="card small center" style="margin-top:10px;">
-      <div>Built with Firebase Realtime DB as signalling (free). For Android APK, start the native screen capture service.</div>
     </div>
   </div>
 
@@ -110,14 +96,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const ADMIN_PASSWORD = "Sulove@123";
-
 /* ===== UI Refs ===== */
 const entryCard = document.getElementById('entryCard');
 const adminCard = document.getElementById('adminCard');
 const viewerCard = document.getElementById('viewerCard');
 const nameInput = document.getElementById('nameInput');
-const passwordInput = document.getElementById('passwordInput');
 const enterBtn = document.getElementById('enterBtn');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
@@ -126,26 +109,37 @@ const remoteVideo = document.getElementById('remoteVideo');
 const viewerNameLabel = document.getElementById('viewerNameLabel');
 const viewerCountAdmin = document.getElementById('viewerCountAdmin');
 const viewerCountViewer = document.getElementById('viewerCountViewer');
-const chatBox = document.querySelectorAll('#chat')[0];
+const chatAdmin = document.getElementById('chatAdmin');
+const chatViewer = document.getElementById('chatViewer');
 const adminMsg = document.getElementById('adminMsg');
 const sendAdminMsg = document.getElementById('sendAdminMsg');
 const msgInput = document.getElementById('msgInput');
 const sendMsg = document.getElementById('sendMsg');
 const clearChatBtn = document.getElementById('clearChatBtn');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const leaveBtn = document.getElementById('leaveBtn');
 
 let isAdmin = false;
 let localStream = null;
-let pcs = {};
 let viewerId = null;
 
-function genId(len=8){ const s='abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
-function now(){ return new Date().toISOString(); }
-function appendChat(text){ const div=document.createElement('div'); div.className='chat-msg'; div.innerText=text; chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight; }
+/* ===== Utils ===== */
+function genId(len=10){ const s='abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from({length:len},()=>s[Math.floor(Math.random()*s.length)]).join(''); }
+function now(){ return new Date().toLocaleTimeString(); }
+function appendChat(msg, admin=false){
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.textContent = msg;
+  if(admin){ chatAdmin.appendChild(div); chatViewer.appendChild(div); }
+  else{ chatViewer.appendChild(div); chatAdmin.appendChild(div); }
+  chatAdmin.scrollTop = chatAdmin.scrollHeight;
+  chatViewer.scrollTop = chatViewer.scrollHeight;
+}
 
+/* ===== Viewer Count ===== */
 const viewerCountRef = db.ref('meta/viewerCount');
-viewerCountRef.once('value', snap => { if(snap.val()===null) viewerCountRef.set(0); });
-viewerCountRef.on('value', snap => {
+viewerCountRef.once('value', snap=>{ if(snap.val()===null) viewerCountRef.set(0); });
+viewerCountRef.on('value', snap=>{
   const v = snap.val() || 0;
   viewerCountAdmin.innerText = v;
   viewerCountViewer.innerText = v;
@@ -153,67 +147,68 @@ viewerCountRef.on('value', snap => {
 async function incViewerCount(){ await viewerCountRef.transaction(n => (n||0)+1); }
 async function decViewerCount(){ await viewerCountRef.transaction(n => Math.max(0,(n||0)-1)); }
 
-window.addEventListener('beforeunload', () => {
-  if(!isAdmin && viewerId) { decViewerCount(); db.ref('viewers/'+viewerId).remove().catch(()=>{}); }
-});
-
 /* ===== Chat ===== */
 const chatRef = db.ref('chat');
-chatRef.on('child_added', snap => { appendChat(snap.val().time + '  ' + snap.val().text); });
-function pushChat(name,text){ chatRef.push({time:now(),text:`${name}: ${text}`}); }
-clearChatBtn.onclick = ()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatBox.innerHTML=''; };
+chatRef.on('child_added', snap=>{ const val=snap.val(); appendChat(val.text, val.admin||false); });
+function pushChat(text, admin=false){ chatRef.push({text,text,admin}); }
+clearChatBtn.onclick = ()=>{ if(!isAdmin) return; db.ref('chat').remove(); chatAdmin.innerHTML=''; chatViewer.innerHTML=''; };
 
 /* ===== Entry ===== */
 enterBtn.onclick = ()=>{
-  const pass=passwordInput.value.trim();
-  const name=nameInput.value.trim();
-  if(pass===ADMIN_PASSWORD){
-    isAdmin=true; entryCard.style.display='none'; adminCard.style.display='block'; viewerCard.style.display='none';
-    appendChat('System: Admin signed in at '+now());
-    listenForViewerRequests();
+  const name = nameInput.value.trim() || 'Anonymous';
+  if(name.toLowerCase() === 'admin'){ // simple classic admin login
+    isAdmin=true;
+    entryCard.style.display='none';
+    adminCard.style.display='block';
+    viewerCard.style.display='none';
+    appendChat('System: Admin joined', true);
   }else{
     isAdmin=false;
-    viewerId=genId(10); entryCard.style.display='none'; adminCard.style.display='none'; viewerCard.style.display='block';
-    viewerNameLabel.innerText=name||'Anonymous';
-    db.ref('viewers/'+viewerId).set({name:name||'Anonymous',joined:now()});
+    viewerId = genId(10);
+    entryCard.style.display='none';
+    adminCard.style.display='none';
+    viewerCard.style.display='block';
+    viewerNameLabel.innerText=name;
+    db.ref('viewers/'+viewerId).set({joined:now()});
     incViewerCount();
-    requestOfferAsViewer(viewerId,name||'Anonymous');
-    appendChat('System: Viewer joined as '+(name||'Anonymous')+' at '+now());
+    appendChat('System: '+name+' joined');
   }
 };
 
-/* ===== Admin start/stop share (fixed) ===== */
+/* ===== Admin Start/Stop Screen Share ===== */
 startBtn.onclick = async ()=>{
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
-    alert('Screen capture not supported in this APK WebView. Use Android native screen capture service.');
-    return;
-  }
   try{
     localStream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-    localVideo.srcObject=localStream;
-    appendChat('Admin: started sharing at '+now());
-    db.ref('meta/broadcaster').set({online:true,startedAt:now()});
-  }catch(e){ alert('Could not getDisplayMedia(): '+e.message); console.error(e); }
+    localVideo.srcObject = localStream;
+    appendChat('Admin: started sharing', true);
+    db.ref('meta/broadcaster').set({online:true});
+  }catch(e){ alert('Screen capture not supported: '+e.message); }
 };
-stopBtn.onclick=()=>{
+stopBtn.onclick = ()=>{
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; localVideo.srcObject=null; }
-  db.ref('meta/broadcaster').set({online:false,stoppedAt:now()});
-  appendChat('Admin: stopped sharing at '+now());
+  db.ref('meta/broadcaster').set({online:false});
+  appendChat('Admin: stopped sharing', true);
 };
 
-fullscreenBtn.onclick=()=>{ if(remoteVideo.requestFullscreen) remoteVideo.requestFullscreen(); else if(remoteVideo.webkitRequestFullscreen) remoteVideo.webkitRequestFullscreen(); };
+/* ===== Messaging ===== */
+sendMsg.onclick = ()=>{ const text = msgInput.value.trim(); if(!text) return; pushChat('Viewer: '+text); msgInput.value=''; };
+sendAdminMsg.onclick = ()=>{ if(!isAdmin) return; const text = adminMsg.value.trim(); if(!text) return; pushChat('Admin: '+text, true); adminMsg.value=''; };
 
-/* ===== Viewer / Admin messaging ===== */
-sendMsg.onclick=()=>{ const text=msgInput.value.trim(); if(!text) return; pushChat(nameInput.value||'Anonymous',text); msgInput.value=''; };
-sendAdminMsg.onclick=()=>{ if(!isAdmin) return; const text=adminMsg.value.trim(); if(!text) return; pushChat('Admin',text); adminMsg.value=''; };
+/* ===== Fullscreen ===== */
+fullscreenBtn.onclick = ()=>{ if(remoteVideo.requestFullscreen) remoteVideo.requestFullscreen(); else if(remoteVideo.webkitRequestFullscreen) remoteVideo.webkitRequestFullscreen(); };
 
-/* ===== Optional presence / viewer join/leave messages ===== */
-const viewersListRef=db.ref('viewers');
-viewersListRef.on('child_added',snap=>{ const val=snap.val(); appendChat('System: '+(val.name||'Viewer')+' joined at '+(val.joined||now())); });
-viewersListRef.on('child_removed',snap=>{ const val=snap.val(); if(val) appendChat('System: '+(val.name||'Viewer')+' left'); });
+/* ===== Leave ===== */
+leaveBtn.onclick = ()=>{
+  if(viewerId){ decViewerCount(); db.ref('viewers/'+viewerId).remove(); }
+  location.reload();
+};
 
-/* ===== Placeholder for your existing WebRTC code (listenForViewerRequests, requestOfferAsViewer) ===== */
-/* Copy all your previous WebRTC logic here, unchanged. */
+/* ===== Cleanup ===== */
+window.addEventListener('beforeunload', ()=>{
+  if(!isAdmin && viewerId){ decViewerCount(); db.ref('viewers/'+viewerId).remove(); }
+});
+
+/* ===== TODO: WebRTC logic goes here (listenForViewerRequests, requestOfferAsViewer) ===== */
 
   </script>
 </body>
